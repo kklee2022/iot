@@ -1,0 +1,128 @@
+services:
+
+  # ── Backing services ────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-iotplatform}
+      POSTGRES_USER: ${POSTGRES_USER:-iot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iot}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Application services ────────────────────────────────────────────────────
+
+  app:
+    build: .
+    image: iotplatform:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      HOME: /tmp
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: /app/deploy/start.sh
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    build: .
+    image: iotplatform:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      HOME: /tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: /app/deploy/start_worker.sh
+
+  beat:
+    build: .
+    image: iotplatform:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      HOME: /tmp
+    depends_on:
+      worker:
+        condition: service_started
+    command: /app/deploy/start_beat.sh
+
+  # ── MQTT brokers (choose one profile at runtime) ────────────────────────────
+  # Usage: docker compose --profile mosquitto up
+  #        docker compose --profile emqx up
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    profiles: ["mosquitto"]
+    ports:
+      - "1883:1883"
+      - "9001:9001"   # WebSockets
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_pub -h 127.0.0.1 -p 1883 -t healthcheck -n -q 1 2>/dev/null && echo OK"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  emqx:
+    image: emqx/emqx:5
+    restart: unless-stopped
+    profiles: ["emqx"]
+    ports:
+      - "1883:1883"
+      - "8083:8083"   # WebSockets
+      - "8084:8084"   # WebSockets TLS
+      - "18083:18083" # Dashboard
+    environment:
+      EMQX_NAME: emqx
+      EMQX_ALLOW_ANONYMOUS: "true"
+      EMQX_LOADED_PLUGINS: "emqx_recon,emqx_retainer,emqx_management,emqx_dashboard"
+    volumes:
+      - emqx_data:/opt/emqx/data
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  postgres_data:
+  mosquitto_data:
+  emqx_data:

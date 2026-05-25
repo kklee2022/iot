@@ -1,0 +1,25 @@
+# Local development overrides.
+# Automatically merged by `docker compose up` when this file is present.
+# Mounts source code for hot-reload and switches to the local settings profile.
+
+services:
+
+  app:
+    volumes:
+      - .:/app
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DJANGO_DEBUG: "True"
+    command: python manage.py runserver 0.0.0.0:8000
+
+  worker:
+    volumes:
+      - .:/app
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+
+  beat:
+    volumes:
+      - .:/app
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local

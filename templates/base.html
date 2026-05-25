@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}IoT Platform{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { DEFAULT: '#0ea5e9', dark: '#0284c7' }
+          }
+        }
+      }
+    }
+  </script>
+  {% block head_extra %}{% endblock %}
+</head>
+<body class="min-h-full bg-slate-100 text-slate-800 antialiased">
+
+<!-- Navbar -->
+<header class="bg-slate-900 shadow">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
+    <a href="{% url 'ui-index' %}" class="flex items-center gap-2 text-white font-bold text-lg tracking-wide hover:text-sky-400 transition-colors">
+      <span class="text-sky-400">IO</span> IoT Platform
+    </a>
+    <nav class="flex items-center gap-6 text-sm font-medium">
+      <a href="{% url 'ui-index' %}" class="text-slate-300 hover:text-white transition-colors">Devices</a>
+      <a href="/api/health/" class="text-slate-300 hover:text-white transition-colors">Health API</a>
+      <a href="/admin/" class="text-slate-300 hover:text-white transition-colors">Admin</a>
+      {% if user.is_authenticated %}
+        <span class="text-slate-400 text-xs hidden sm:inline">{{ user.get_username }}</span>
+        <form method="post" action="{% url 'accounts:logout' %}" class="inline">
+          {% csrf_token %}
+          <button type="submit" class="text-slate-300 hover:text-white transition-colors">Logout</button>
+        </form>
+      {% else %}
+        <a href="{% url 'accounts:login' %}" class="text-sky-400 hover:text-white transition-colors">Sign in</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+
+<!-- Page content -->
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  {% block content %}{% endblock %}
+</main>
+
+</body>
+</html>
